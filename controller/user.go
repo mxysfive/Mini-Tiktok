@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-var onlineUser = map[string]*User{}
+var onlineUser = map[string]*repository.User{}
 
 const MaxUsernameLen = 32
 const MaxPasswordLen = 32
@@ -22,7 +22,7 @@ type RegisterResp struct {
 }
 type UserResp struct {
 	Response
-	User User `json:"user"`
+	User repository.User `json:"user"`
 }
 
 var userDaoInstance = repository.NewUserDaoInstance()
@@ -73,16 +73,8 @@ func Login(c *gin.Context) {
 		Token:    tokenSb.String(),
 	})
 
-	var loginUser = &User{
-		UserId:        user.ID,
-		Name:          user.Name,
-		FollowCount:   user.FollowCount,
-		FollowerCount: user.FollowerCount,
-		IsFollow:      false,
-	}
-
 	//加入到online表里
-	onlineUser[tokenSb.String()] = loginUser
+	onlineUser[tokenSb.String()] = user
 }
 
 func UserInfo(c *gin.Context) {
@@ -96,22 +88,23 @@ func UserInfo(c *gin.Context) {
 		return
 	}
 
-	userId, err := strconv.Atoi(qid)
+	userId, Perr := strconv.ParseInt(qid, 10, 64)
+	if Perr != nil {
+		fmt.Printf("Function of atoi in UserInfo fail %v", Perr)
+	}
+	var user, err = userDaoInstance.QueryUserById(userId)
 	if err != nil {
-		fmt.Printf("Function of atoi in UserInfo fail %v", err)
+		c.JSON(http.StatusOK, Response{
+			StatusCode: 1,
+			StatusMsg:  "no user found",
+		})
+
 	}
-	var userEntity = userDaoInstance.QueryUserById(int64(userId))
-	fmt.Println("entity is: ", userEntity)
-	loginUser := &User{
-		UserId:        userEntity.ID,
-		Name:          userEntity.Name,
-		FollowCount:   userEntity.FollowCount,
-		FollowerCount: userEntity.FollowerCount,
-		IsFollow:      false,
-	}
+	fmt.Println("entity is: ", user)
+	onlineUser[utoken] = user
 	c.JSON(http.StatusOK, UserResp{
 		Response: Response{0, ""},
-		User:     *loginUser,
+		User:     *user,
 	})
 
 	return

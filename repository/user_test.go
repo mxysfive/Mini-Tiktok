@@ -19,7 +19,10 @@ func TestUserDao_QueryUserById(t *testing.T) {
 	if err := Init(); err != nil {
 		panic(err)
 	}
-	var result = usrDao.QueryUserById(3)
+	result, err := usrDao.QueryUserById(3)
+	if err != nil {
+		fmt.Println("没这个人")
+	}
 	fmt.Println(result.ID)
 }
 

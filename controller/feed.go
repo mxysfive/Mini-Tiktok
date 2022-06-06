@@ -11,15 +11,10 @@ import (
 
 var videoDaoInstance = repository.NewVideoDaoInstance()
 
-type FeedRequest struct {
-	LatestTime int64  `json:"latest_time,omitempty"`
-	Token      string `json:"token,omitempty"`
-}
-
 type FeedResponse struct {
 	Response
-	VideoList []Video `json:"video_list,omitempty"`
-	NextTime  int64   `json:"next_time,omitempty"`
+	VideoList []repository.Video `json:"video_list,omitempty"`
+	NextTime  int64              `json:"next_time,omitempty"`
 }
 
 func Feed(c *gin.Context) {
@@ -38,13 +33,20 @@ func Feed(c *gin.Context) {
 		return
 	} else {
 		//token 所对应的用户存在
-		var videoList = videoDao.QueryFeedFlow(latestTime)
+		var videoList = videoDao.QueryFeedFlow(onlineUser[token].ID, latestTime)
+		var nextTime = videoList[len(videoList)-1].CreateTime
+		c.JSON(http.StatusOK, FeedResponse{
+			Response:  Response{0, ""},
+			VideoList: videoList,
+			NextTime:  nextTime,
+		})
 
 	}
+	return
 
 }
 
-func PackVideoList() (videoList []Video) {
+func PackVideoList() (videoList []repository.Video) {
 	//查video的数据
 	return nil
 }

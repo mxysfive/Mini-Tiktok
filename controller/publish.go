@@ -6,23 +6,25 @@ import (
 	"github.com/mxysfive/Mini-Tiktok/repository"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 type PublishListResp struct {
 	Response
-	VideoList []Video
+	VideoList []repository.Video `json:"video_list"`
 }
 
 var videoDao = repository.NewVideoDaoInstance()
 
 // ResourceBase 如果映射的域名和改了，需要更改这个配置
-const ResourceBase = "http://5kt3855788.zicp.vip/static/"
+const ResourceBase = "http://5kt3855788.zicp.vip/static"
 
 func PublishVideo(c *gin.Context) {
 	token := c.PostForm("token")
 	title := c.PostForm("title")
 	if _, exists := onlineUser[token]; !exists {
+		fmt.Println("not exist?")
 		c.JSON(http.StatusOK, Response{
 			StatusCode: 1,
 			StatusMsg:  "user is not exists",
@@ -30,6 +32,7 @@ func PublishVideo(c *gin.Context) {
 		return
 	}
 	data, err := c.FormFile("data")
+
 	if err != nil {
 		c.JSON(http.StatusOK, Response{
 			1,
@@ -37,9 +40,9 @@ func PublishVideo(c *gin.Context) {
 		})
 		return
 	}
-	filename := filepath.Base(data.Filename)
+	filename := data.Filename
 	user := onlineUser[token]
-	finalName := fmt.Sprintf("%d_%s", user.UserId, filename)
+	finalName := fmt.Sprintf("%d_%s", user.ID, filename)
 	saveFile := filepath.Join("./public/", finalName)
 	if err := c.SaveUploadedFile(data, saveFile); err != nil {
 		c.JSON(http.StatusOK, Response{
@@ -58,18 +61,21 @@ func PublishVideo(c *gin.Context) {
 		fmt.Printf("wrong join URL")
 		fmt.Printf("Wrong URL is: %s", playURL)
 	}
-	coverURL, cErr := joinResourceURL(ResourceBase, coverName)
+	coverURL, cErr := joinResourceURL(ResourceBase, "wetcar.jpg") //test
 	if cErr != nil {
 		fmt.Printf("wrong join URL")
 		fmt.Printf("Wrong URL is: %s", coverURL)
 	}
-	videoDao.CreateVideoRecord(user.UserId, playURL, coverURL, title)
+	if err := videoDao.CreateVideoRecord(user.ID, playURL, coverURL, title); err != nil {
+		fmt.Println("Error in create video record")
+	}
 	return
 }
 
-func joinResourceURL(baseDomain, resourse string) (string, error) {
+func joinResourceURL(baseDomain, resource string) (string, error) {
+	// 返回拼接好的视频或封面的URL
 	var sb strings.Builder
-	_, err := fmt.Fprintf(&sb, "%s/%s", baseDomain, resourse)
+	_, err := fmt.Fprintf(&sb, "%s/%s", baseDomain, resource)
 	if err != nil {
 		fmt.Printf("joinResource fail %v", err)
 		return "", err
@@ -78,32 +84,35 @@ func joinResourceURL(baseDomain, resourse string) (string, error) {
 }
 
 func PublishList(c *gin.Context) {
-	// uid := c.Query("user_id")
+	id := c.Query("user_id")
+	//因为可以查看别人发出的视频，所以user_id 可能是别人的
 	utoken := c.Query("token")
-
 	if _, exists := onlineUser[utoken]; !exists {
 		c.JSON(http.StatusOK, Response{
-			1,
-			"user is not exists",
+			StatusCode: 1,
+			StatusMsg:  "user is not online",
 		})
 		return
 	}
-	user := onlineUser[utoken]
-	var videos = videoDao.QueryByOwner(user.UserId)
-	var PublishedList = make([]Video, len(videos))
-	for i, _ := range PublishedList {
-		PublishedList[i] = Video{
-			VideoId:       videos[i].ID,
-			Author:        *user,
-			PlayUrl:       videos[i].PlayUrl,
-			CoverUrl:      videos[i].CoverUrl,
-			FavoriteCount: videos[i].FavoriteCount,
-			CommentCount:  videos[i].CommentCount,
-			IsFavorite:    false, //自己给自己都是false吧我猜的
-			Title:         videos[i].Title,
-		}
+	uid, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		fmt.Println("wrong uid in publish list")
 	}
-	c.JSON(http.StatusOK, PublishedList)
+
+	user, err := userDaoInstance.QueryUserById(uid)
+	if err != nil {
+		c.JSON(http.StatusOK, Response{
+			1,
+			"user is not exists in database",
+		})
+		return
+	}
+	var PublishedList = videoDao.QueryByOwner(user.ID)
+
+	c.JSON(http.StatusOK, PublishListResp{
+		Response:  Response{0, "Query success!"},
+		VideoList: PublishedList,
+	})
 	return
 
 }
